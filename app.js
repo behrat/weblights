@@ -9,25 +9,26 @@ var keepAliveInterval = null;
 var clientCount = 0;
 
 function pollSwitch() {
-    dcLightSwitch.request(modbus.FUNCTION_CODES.READ_COILS, 0, 2,
-      function(error, response) {
-        if(error) {
-          console.log(error);
-        }
-        if(!response) {
-          console.log("No response");
-          return; 
-        }
-
-        if(dcLightSwitch.input != response[1]) {
-          dcLightSwitch.relay = response[0];
-          dcLightSwitch.input = response[1];
-          console.log("Sending dc_lights: " + dcLightSwitch.input);
-          io.sockets.emit("dc_lights", dcLightSwitch.input);
-        }
-
+  dcLightSwitch.request(modbus.FUNCTION_CODES.READ_COILS, 0, 2,
+    function(error, response) {
+      if(error) {
+        console.log("Polling Error: " + error);
+        reconnectLights();
       }
-    );
+      if(!response) {
+        console.log("No response");
+        return; 
+      }
+
+      if(dcLightSwitch.input != response[1]) {
+        dcLightSwitch.relay = response[0];
+        dcLightSwitch.input = response[1];
+        console.log("Sending dc_lights: " + dcLightSwitch.input);
+        io.sockets.emit("dc_lights", dcLightSwitch.input);
+      }
+
+    }
+  );
 }
 
 function keepAlive() {
@@ -48,27 +49,45 @@ io.sockets.on('connection', function(client) {
     );	  
   });
 
-
   client.on('disconnect', function() {
     console.log("Client disconnected: " + client)
     clientCount--;
     if(clientCount == 0) {
-      console.log("Stopping polling")
-      clearInterval(pollSwitchInterval)
-      clearInterval(keepAliveInterval)
-      dcLightSwitch.end();
-      dcLightSwitch = null;
+      disconnectLights();
     }
   });
   
   clientCount++;
   if(dcLightSwitch == null) {
-    console.log("Starting polling")
-    dcLightSwitch = require("./modbus-stack/client").createClient(502, '192.168.70.22');
-    pollSwitchInterval = setInterval(pollSwitch, 10000);
-    keepAliveInterval = setInterval(keepAlive, 50000);
+    connectLights();
   } else {
     client.emit("dc_lights", dcLightSwitch.input);
   }
 });
 
+function reconnectLights() {
+   disconnectLights();
+   setTimeout(function(){ connectLights(); }, 2000);
+}
+
+function connectLights() {
+  console.log("Connecting Lights.")
+  dcLightSwitch = require("./modbus-stack/client").createClient(502, '172.70.21.22');
+  pollSwitchInterval = setInterval(pollSwitch, 2000);
+  keepAliveInterval = setInterval(keepAlive, 50000);
+  dcLightSwitch.on('error', function() {
+    console.log("Error event!");
+    reconnectLights();
+  });
+  dcLightSwitch.on("connect", function() { console.log("Connect event!") } );
+  dcLightSwitch.on("connection", function() { console.log("Connection event!") } );
+  dcLightSwitch.on('disconnect', function() { console.log("Disconnect event!") } );
+}
+
+function disconnectLights() {
+  console.log("Disconnecting Lights")
+  clearInterval(pollSwitchInterval)
+  clearInterval(keepAliveInterval)
+  dcLightSwitch.end();
+  dcLightSwitch = null;
+}
