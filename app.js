@@ -1,31 +1,38 @@
+#!/usr/bin/env nodejs
+
 var http_server = require('./static_server.js').start();
 var io = require('socket.io').listen(http_server);
 io.set('log level', 1); // reduce logging
 
 var modbus = require('./modbus-stack');
-var dcLightSwitch = null;
-var pollSwitchInterval = null;
+var dcLightStream = null;
+var pollSwitchTimeout = null
+//var pollSwitchInterval = null;
 var keepAliveInterval = null;
 var clientCount = 0;
 
 function pollSwitch() {
-  dcLightSwitch.request(modbus.FUNCTION_CODES.READ_COILS, 0, 2,
+  dcLightStream.request(modbus.FUNCTION_CODES.READ_COILS, 0, 2,
     function(error, response) {
       if(error) {
         console.log("Polling Error: " + error);
-        reconnectLights();
+        disconnectLights();
+        return;
       }
       if(!response) {
         console.log("No response");
+        disconnectLights();
         return; 
       }
 
-      if(dcLightSwitch.input != response[1]) {
-        dcLightSwitch.relay = response[0];
-        dcLightSwitch.input = response[1];
-        console.log("Sending dc_lights: " + dcLightSwitch.input);
-        io.sockets.emit("dc_lights", dcLightSwitch.input);
+      if(dcLightStream.input != response[1]) {
+        dcLightStream.relay = response[0];
+        dcLightStream.input = response[1];
+        console.log("Sending dc_lights: " + dcLightStream.input);
+        io.sockets.emit("dc_lights", dcLightStream.input);
       }
+
+      pollSwitchTimeout = setTimeout(pollSwitch, 2000);
 
     }
   );
@@ -39,12 +46,12 @@ io.sockets.on('connection', function(client) {
   console.log("Client connected: " + client)
   client.on('toggle_lights', function() {
     console.log("Toggling lights")
-    dcLightSwitch.request(// Function Code: 16
+    dcLightStream.request(// Function Code: 16
 			  modbus.FUNCTION_CODES.WRITE_MULTIPLE_REGISTERS,
 			  16,
 			  [52429,15820],
-      function(registers) {
-        console.log("Response: " + registers)
+      function(error, response) {
+        console.log("Error: " + error + " Response: " + response)
       }
     );	  
   });
@@ -58,36 +65,66 @@ io.sockets.on('connection', function(client) {
   });
   
   clientCount++;
-  if(dcLightSwitch == null) {
+  if(dcLightStream == null) {
     connectLights();
   } else {
-    client.emit("dc_lights", dcLightSwitch.input);
+    client.emit("dc_lights", dcLightStream.input);
   }
 });
 
-function reconnectLights() {
-   disconnectLights();
-   setTimeout(function(){ connectLights(); }, 2000);
-}
-
 function connectLights() {
   console.log("Connecting Lights.")
-  dcLightSwitch = require("./modbus-stack/client").createClient(502, '172.70.21.22');
-  pollSwitchInterval = setInterval(pollSwitch, 2000);
-  keepAliveInterval = setInterval(keepAlive, 50000);
-  dcLightSwitch.on('error', function() {
-    console.log("Error event!");
-    reconnectLights();
+  dcLightStream = require("./modbus-stack/client").createClient(502, '172.20.21.22');
+  dcLightStream.on('error', function(error) {
+      console.log("Error event! " + error);
+      setTimeout(connectLights, 2000);
   });
-  dcLightSwitch.on("connect", function() { console.log("Connect event!") } );
-  dcLightSwitch.on("connection", function() { console.log("Connection event!") } );
-  dcLightSwitch.on('disconnect', function() { console.log("Disconnect event!") } );
+  dcLightStream.on("connect", function() {
+    console.log("Connect event!");
+    dcLightStream.removeAllListeners('error');
+    lightsConnected();
+  });
+}
+
+function lightsConnected() {
+  console.log("Lights Connected");
+
+  dcLightStream.on('end', function() {
+    console.log("End event!")
+  });
+
+  dcLightStream.setNoDelay();
+  dcLightStream.setTimeout(5000, function() {
+        console.log("Timeout Callback!");
+        disconnectLights();
+  });
+  
+  dcLightStream.on('error', function(error) {
+      console.log("Error event! " + error);
+  });
+  dcLightStream.on('close', function(had_error) {
+    console.log("Close event! Error: " + had_error)
+    lightsDisconnected();
+    if(clientCount > 0) connectLights();
+  });
+
+
+  pollSwitch();
+//  pollSwitchInterval = setInterval(pollSwitch, 2000);
+  keepAliveInterval = setInterval(keepAlive, 50000);
 }
 
 function disconnectLights() {
   console.log("Disconnecting Lights")
-  clearInterval(pollSwitchInterval)
-  clearInterval(keepAliveInterval)
-  dcLightSwitch.end();
-  dcLightSwitch = null;
+  if(dcLightStream == null) return;
+  dcLightStream.destroy();
 }
+
+function lightsDisconnected() {
+  console.log("Lights Disconnected");
+  clearTimeout(pollSwitchTimeout);
+  // clearInterval(pollSwitchInterval);
+  clearInterval(keepAliveInterval);
+  dcLightStream = null;
+}
+
