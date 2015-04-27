@@ -58,7 +58,7 @@
     right: 0px; 
 }
 </style>
-
+<meta name="viewport" content="width=device-width, initial-scale=3"/>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.1/jquery.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script type="text/javascript">
@@ -66,13 +66,16 @@ $(function() {
 var socket = io.connect();
 var switches = $(".onoffswitch-checkbox");
 var inners = switches.siblings("label").children(".onoffswitch-inner");
-inners.addClass("onoffswitch-inner-loading-off");
 
 socket.on("disconnect", function() {
-  inners.addClass("onoffswitch-inner-loading-off");
+  $("#connecting-msg").show();
+  $("#dc-light-switch-div").hide();
 });
 
 socket.on("dc_lights", function(status) {
+  $("#dc-light-switch-div").show();
+  $("#connecting-msg").hide();
+
   inners.removeClass("onoffswitch-inner-loading-on").removeClass("onoffswitch-inner-loading-off");
   switches.prop("checked", status);
   switches.removeAttr("disabled");
@@ -103,7 +106,8 @@ $(".onoffswitch-checkbox").click(function(event) {
 // Loading gif: http://www.ajaxload.info/
 
 </script>
-<div class="onoffswitch"> 
+<p id="connecting-msg">Connecting to lights - <img src="loading.gif"/></p>
+<div id="dc-light-switch-div" class="onoffswitch" style="display: none" >
     <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="dc-light-switch">
     <label class="onoffswitch-label" for="dc-light-switch">
         <div class="onoffswitch-inner"></div>
