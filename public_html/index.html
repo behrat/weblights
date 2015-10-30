@@ -63,7 +63,7 @@
 <script src="/libs/socket.io.min.js"></script>
 <script type="text/javascript">
 $(function() {
-var socket = io.connect();
+var socket = io.connect('',{'transports': ['xhr-polling']});
 var switches = $(".onoffswitch-checkbox");
 var inners = switches.siblings("label").children(".onoffswitch-inner");
 
