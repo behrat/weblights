@@ -1,5 +1,7 @@
 #!/usr/bin/env nodejs
 
+var util = require('util');
+
 var http_server = require('./static_server.js').start();
 var io = require('socket.io').listen(http_server);
 io.set('log level', 1); // reduce logging
@@ -15,12 +17,12 @@ function pollSwitch() {
   dcLightStream.request(modbus.FUNCTION_CODES.READ_COILS, 0, 2,
     function(error, response) {
       if(error) {
-        console.log("Polling Error: " + error);
+        util.log("Polling Error: " + error);
         disconnectLights();
         return;
       }
       if(!response) {
-        console.log("No response");
+        util.log("No response");
         disconnectLights();
         return; 
       }
@@ -28,7 +30,7 @@ function pollSwitch() {
       if(dcLightStream.input != response[1]) {
         dcLightStream.relay = response[0];
         dcLightStream.input = response[1];
-        console.log("Sending dc_lights: " + dcLightStream.input);
+        util.log("Sending dc_lights: " + dcLightStream.input);
         io.sockets.emit("dc_lights", dcLightStream.input);
       }
 
@@ -43,21 +45,21 @@ function keepAlive() {
 }
 
 io.sockets.on('connection', function(client) {
-  console.log("Client connected: " + client)
+  util.log("Client connected: " + client)
   client.on('toggle_lights', function() {
-    console.log("Toggling lights")
+    util.log("Toggling lights")
     dcLightStream.request(// Function Code: 16
 			  modbus.FUNCTION_CODES.WRITE_MULTIPLE_REGISTERS,
 			  16,
 			  [52429,15820],
       function(error, response) {
-        console.log("Error: " + error + " Response: " + response)
+        util.log("Error: " + error + " Response: " + response)
       }
     );	  
   });
 
   client.on('disconnect', function() {
-    console.log("Client disconnected: " + client)
+    util.log("Client disconnected: " + client)
     clientCount--;
     if(clientCount == 0) {
       disconnectLights();
@@ -73,37 +75,37 @@ io.sockets.on('connection', function(client) {
 });
 
 function connectLights() {
-  console.log("Connecting Lights.")
+  util.log("Connecting Lights.")
   dcLightStream = require("./modbus-stack/client").createClient(502, '172.20.21.22');
   dcLightStream.on('error', function(error) {
-      console.log("Error event! " + error);
+      util.log("Error event! " + error);
       setTimeout(connectLights, 2000);
   });
   dcLightStream.on("connect", function() {
-    console.log("Connect event!");
+    util.log("Connect event!");
     dcLightStream.removeAllListeners('error');
     lightsConnected();
   });
 }
 
 function lightsConnected() {
-  console.log("Lights Connected");
+  util.log("Lights Connected");
 
   dcLightStream.on('end', function() {
-    console.log("End event!")
+    util.log("End event!")
   });
 
   dcLightStream.setNoDelay();
   dcLightStream.setTimeout(5000, function() {
-        console.log("Timeout Callback!");
+        util.log("Timeout Callback!");
         disconnectLights();
   });
   
   dcLightStream.on('error', function(error) {
-      console.log("Error event! " + error);
+      util.log("Error event! " + error);
   });
   dcLightStream.on('close', function(had_error) {
-    console.log("Close event! Error: " + had_error)
+    util.log("Close event! Error: " + had_error)
     lightsDisconnected();
     if(clientCount > 0) connectLights();
   });
@@ -115,13 +117,13 @@ function lightsConnected() {
 }
 
 function disconnectLights() {
-  console.log("Disconnecting Lights")
+  util.log("Disconnecting Lights")
   if(dcLightStream == null) return;
   dcLightStream.destroy();
 }
 
 function lightsDisconnected() {
-  console.log("Lights Disconnected");
+  util.log("Lights Disconnected");
   clearTimeout(pollSwitchTimeout);
   // clearInterval(pollSwitchInterval);
   clearInterval(keepAliveInterval);
