@@ -1,6 +1,7 @@
 // static server code from https://gist.github.com/rpflorence/701407
 
-var http = require("http"),
+var util = require("util"),
+    http = require("http"),
     url = require("url"),
     path = require("path"),
     fs = require("fs")
@@ -36,7 +37,7 @@ var server = http.createServer(function(request, response) {
   });
 });
 
-console.log("Static file server running at\n  => http://localhost:" + port + "/\nCTRL + C to shutdown");
+util.log("Static file server running at\n  => http://localhost:" + port + "/\nCTRL + C to shutdown");
 
 // added by Braden:
 module.exports = {
