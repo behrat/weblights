@@ -1,5 +1,4 @@
-#FROM node:12.14.0-alpine3.11
-FROM node:12.14.0-buster
+FROM node:12.14.0-alpine3.11
 
 WORKDIR /srv
 COPY modbus-stack modbus-stack
