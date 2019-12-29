@@ -1,0 +1,13 @@
+{
+	"name":"weblights",
+	"version":"0.1.0",
+	"description":"Allow a users to control lights connected to a WebRelay (http://www.controlbyweb.com/webrelay/)",
+	"author":"Braden Ehrat",
+	"main":"app.js",
+	"scripts":{
+		"start":"node app.js"
+	},
+	"dependencies":{
+		"socket.io":"^0.9.18"
+	}
+}
